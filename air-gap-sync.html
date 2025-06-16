@@ -7,6 +7,8 @@
     <!-- Add QR code libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <!-- Add compression library -->
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
     <style>
       * {
         margin: 0;
@@ -363,6 +365,13 @@
               style="display: none"
               onchange="handleFileSelect(event)"
             />
+            <button
+              class="btn"
+              style="margin-top: 1rem"
+              onclick="event.stopPropagation(); importFromUSB();"
+            >
+              📂 Import from USB
+            </button>
           </div>
 
           <div id="file-selected" style="display: none">
@@ -394,9 +403,21 @@
               />
             </div>
 
-            <button class="btn" onclick="processFile()">
-              🔐 Encrypt & Generate QR Codes
-            </button>
+            <div
+              style="
+                display: flex;
+                gap: 1rem;
+                justify-content: center;
+                margin: 1rem 0;
+              "
+            >
+              <button class="btn" onclick="processFile()">
+                🔐 Encrypt & Generate QR Codes
+              </button>
+              <button class="btn" onclick="exportToUSB()">
+                💾 Export to USB
+              </button>
+            </div>
           </div>
 
           <div id="qr-display-section" style="display: none">
@@ -650,11 +671,16 @@
           const fileBuffer = await selectedFile.arrayBuffer();
           const fileData = new Uint8Array(fileBuffer);
 
-          // Simulate compression (in real app, use actual compression library)
-          const compressed = await simulateCompression(fileData);
+          // Real compression using pako
+          const compressed = pako.deflate(fileData);
+          document.getElementById("compressedSize").textContent = formatBytes(
+            compressed.length
+          );
+          document.getElementById("compressionRatio").textContent =
+            Math.floor((1 - compressed.length / fileData.length) * 100) + "%";
 
-          // Simulate encryption (in real app, use actual crypto library)
-          const encrypted = await simulateEncryption(compressed, password);
+          // Real encryption using Web Crypto API
+          const encrypted = await encryptData(compressed, password);
 
           // Generate QR chunks
           generateQRChunks(encrypted);
@@ -665,28 +691,68 @@
         }
       }
 
-      async function simulateCompression(data) {
-        // Simulate compression delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
+      async function encryptData(data, password) {
+        // Generate key from password
+        const encoder = new TextEncoder();
+        const passwordData = encoder.encode(password);
+        const keyData = await crypto.subtle.digest("SHA-256", passwordData);
+        const key = await crypto.subtle.importKey(
+          "raw",
+          keyData,
+          { name: "AES-GCM" },
+          false,
+          ["encrypt"]
+        );
 
-        // For demo purposes, just return the data (in real app, use pako.js or similar)
-        return data;
+        // Generate IV
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+
+        // Encrypt
+        const encrypted = await crypto.subtle.encrypt(
+          {
+            name: "AES-GCM",
+            iv: iv,
+          },
+          key,
+          data
+        );
+
+        // Combine IV and encrypted data
+        const result = new Uint8Array(iv.length + encrypted.byteLength);
+        result.set(iv, 0);
+        result.set(new Uint8Array(encrypted), iv.length);
+
+        return result;
       }
 
-      async function simulateEncryption(data, password) {
-        // Simulate encryption delay
-        await new Promise((resolve) => setTimeout(resolve, 500));
+      async function decryptData(encryptedData, password) {
+        // Extract IV (first 12 bytes)
+        const iv = encryptedData.slice(0, 12);
+        const data = encryptedData.slice(12);
 
-        // Generate random nonce (12 bytes)
-        const nonce = new Uint8Array(12);
-        crypto.getRandomValues(nonce);
+        // Generate key from password
+        const encoder = new TextEncoder();
+        const passwordData = encoder.encode(password);
+        const keyData = await crypto.subtle.digest("SHA-256", passwordData);
+        const key = await crypto.subtle.importKey(
+          "raw",
+          keyData,
+          { name: "AES-GCM" },
+          false,
+          ["decrypt"]
+        );
 
-        // For demo purposes, just combine nonce + data
-        const encrypted = new Uint8Array(nonce.length + data.length);
-        encrypted.set(nonce, 0);
-        encrypted.set(data, nonce.length);
+        // Decrypt
+        const decrypted = await crypto.subtle.decrypt(
+          {
+            name: "AES-GCM",
+            iv: iv,
+          },
+          key,
+          data
+        );
 
-        return encrypted;
+        return new Uint8Array(decrypted);
       }
 
       function generateQRChunks(data) {
@@ -833,23 +899,13 @@
           );
           logReceive(`Combined data: ${encryptedData.length} bytes`, "success");
 
-          // Extract nonce (first 12 bytes) and ciphertext
-          if (encryptedData.length < 12) {
-            throw new Error("Data too short - missing nonce");
-          }
-
-          const nonce = encryptedData.slice(0, 12);
-          const ciphertext = encryptedData.slice(12);
-
+          // Decrypt
           logReceive("Decrypting...", "info");
+          const decrypted = await decryptData(encryptedData, password);
 
-          // Simulate decryption (in real app, use actual crypto)
-          const decrypted = ciphertext; // For demo
-
+          // Decompress
           logReceive("Decompressing...", "info");
-
-          // Simulate decompression (in real app, use actual decompression)
-          const decompressed = decrypted; // For demo
+          const decompressed = pako.inflate(decrypted);
 
           logReceive(
             `Decryption successful: ${decompressed.length} bytes`,
@@ -1052,6 +1108,49 @@
           img.src = e.target.result;
         };
         reader.readAsDataURL(file);
+      }
+
+      // Add USB export functionality
+      async function exportToUSB() {
+        if (!selectedFile) {
+          alert("Please select a file first");
+          return;
+        }
+
+        try {
+          // Create a directory handle
+          const dirHandle = await window.showDirectoryPicker();
+
+          // Create a file in the selected directory
+          const fileHandle = await dirHandle.getFileHandle(selectedFile.name, {
+            create: true,
+          });
+          const writable = await fileHandle.createWritable();
+
+          // Write the file
+          await writable.write(selectedFile);
+          await writable.close();
+
+          alert("File exported to USB successfully!");
+        } catch (error) {
+          alert("Error exporting to USB: " + error.message);
+        }
+      }
+
+      // Add USB import functionality
+      async function importFromUSB() {
+        try {
+          // Show file picker
+          const [fileHandle] = await window.showOpenFilePicker();
+          const file = await fileHandle.getFile();
+
+          // Handle the file
+          handleFile(file);
+
+          alert("File imported from USB successfully!");
+        } catch (error) {
+          alert("Error importing from USB: " + error.message);
+        }
       }
 
       // Initialize
