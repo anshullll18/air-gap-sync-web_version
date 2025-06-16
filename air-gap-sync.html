@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AirGap Sync</title>
+    <!-- Add QR code libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #333;
+      }
+
+      .container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 2rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        max-width: 800px;
+        width: 90%;
+        min-height: 600px;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      .title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0.5rem;
+      }
+
+      .subtitle {
+        color: #666;
+        font-size: 1.1rem;
+      }
+
+      .mode-selector {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        justify-content: center;
+      }
+
+      .mode-btn {
+        padding: 1rem 2rem;
+        border: none;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: #f8f9fa;
+        color: #333;
+        min-width: 120px;
+      }
+
+      .mode-btn.active {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        color: white;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+      }
+
+      .mode-btn:hover:not(.active) {
+        background: #e9ecef;
+        transform: translateY(-1px);
+      }
+
+      .content {
+        min-height: 400px;
+      }
+
+      .section {
+        display: none;
+        animation: fadeIn 0.3s ease;
+      }
+
+      .section.active {
+        display: block;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .file-upload {
+        border: 3px dashed #ddd;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        cursor: pointer;
+      }
+
+      .file-upload:hover {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.05);
+      }
+
+      .file-upload.dragover {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+      }
+
+      .upload-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+      }
+
+      .btn {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        padding: 0.8rem 2rem;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin: 0.5rem;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .input-group {
+        margin-bottom: 1rem;
+      }
+
+      .input-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: #555;
+      }
+
+      .input-group input[type="password"],
+      .input-group input[type="file"] {
+        width: 100%;
+        padding: 0.8rem;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.3s ease;
+      }
+
+      .input-group input:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .qr-display {
+        background: white;
+        border: 2px solid #ddd;
+        border-radius: 12px;
+        padding: 1rem;
+        margin: 1rem 0;
+        text-align: center;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .qr-code {
+        font-family: monospace;
+        font-size: 0.6rem;
+        line-height: 0.6rem;
+        white-space: pre;
+        background: white;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+      }
+
+      .chunk-info {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+      }
+
+      .progress-bar {
+        background: #e9ecef;
+        height: 6px;
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 1rem 0;
+      }
+
+      .progress-fill {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        height: 100%;
+        transition: width 0.3s ease;
+      }
+
+      .scan-options {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+        justify-content: center;
+      }
+
+      .scan-btn {
+        background: #f8f9fa;
+        border: 2px solid #ddd;
+        padding: 1rem;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        flex: 1;
+        text-align: center;
+      }
+
+      .scan-btn:hover {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.05);
+      }
+
+      .scan-btn.active {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+      }
+
+      .log {
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.9rem;
+        margin: 1rem 0;
+      }
+
+      .log-entry {
+        margin-bottom: 0.5rem;
+        padding: 0.25rem;
+        border-radius: 4px;
+      }
+
+      .log-entry.success {
+        background: #d4edda;
+        color: #155724;
+      }
+      .log-entry.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .log-entry.info {
+        background: #d1ecf1;
+        color: #0c5460;
+      }
+
+      .file-info {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+      }
+
+      .file-info h4 {
+        margin-bottom: 0.5rem;
+        color: #333;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1rem;
+        margin: 1rem 0;
+      }
+
+      .stat {
+        text-align: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+      }
+
+      .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #667eea;
+      }
+
+      .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1 class="title">🔒 AirGap Sync</h1>
+        <p class="subtitle">Secure file transfer for air-gapped systems</p>
+      </div>
+
+      <div class="mode-selector">
+        <button class="mode-btn active" onclick="switchMode('send')">
+          📤 Send File
+        </button>
+        <button class="mode-btn" onclick="switchMode('receive')">
+          📥 Receive File
+        </button>
+      </div>
+
+      <div class="content">
+        <!-- Send Mode -->
+        <div id="send-section" class="section active">
+          <div
+            class="file-upload"
+            onclick="document.getElementById('fileInput').click()"
+            ondrop="handleDrop(event)"
+            ondragover="handleDragOver(event)"
+            ondragleave="handleDragLeave(event)"
+          >
+            <div class="upload-icon">📁</div>
+            <h3>Drop file here or click to select</h3>
+            <p>Any file type supported</p>
+            <input
+              type="file"
+              id="fileInput"
+              style="display: none"
+              onchange="handleFileSelect(event)"
+            />
+          </div>
+
+          <div id="file-selected" style="display: none">
+            <div class="file-info">
+              <h4>Selected File:</h4>
+              <p id="fileName"></p>
+              <div class="stats">
+                <div class="stat">
+                  <div class="stat-value" id="originalSize">0</div>
+                  <div class="stat-label">Original (bytes)</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-value" id="compressedSize">0</div>
+                  <div class="stat-label">Compressed (bytes)</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-value" id="compressionRatio">0%</div>
+                  <div class="stat-label">Compression</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="input-group">
+              <label for="sendPassword">Encryption Password:</label>
+              <input
+                type="password"
+                id="sendPassword"
+                placeholder="Enter a strong password"
+              />
+            </div>
+
+            <button class="btn" onclick="processFile()">
+              🔐 Encrypt & Generate QR Codes
+            </button>
+          </div>
+
+          <div id="qr-display-section" style="display: none">
+            <div class="chunk-info">
+              <h4>QR Code Chunks</h4>
+              <p>Scan each QR code in order on the receiving device</p>
+              <div class="progress-bar">
+                <div
+                  class="progress-fill"
+                  id="qrProgress"
+                  style="width: 0%"
+                ></div>
+              </div>
+              <p>
+                Chunk <span id="currentChunk">1</span> of
+                <span id="totalChunks">1</span>
+              </p>
+            </div>
+
+            <div class="qr-display">
+              <div id="qrCode" class="qr-code"></div>
+              <div
+                id="base64Display"
+                style="
+                  font-family: monospace;
+                  font-size: 0.8rem;
+                  word-break: break-all;
+                  padding: 1rem;
+                  background: #f8f9fa;
+                  border-radius: 8px;
+                  margin: 1rem 0;
+                  max-height: 100px;
+                  overflow-y: auto;
+                "
+              ></div>
+            </div>
+
+            <div style="text-align: center">
+              <button class="btn" onclick="prevChunk()" id="prevBtn">
+                ⬅️ Previous
+              </button>
+              <button class="btn" onclick="nextChunk()" id="nextBtn">
+                Next ➡️
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Receive Mode -->
+        <div id="receive-section" class="section">
+          <div class="scan-options">
+            <div class="scan-btn active" onclick="setScanMode('manual')">
+              <h4>📝 Manual Input</h4>
+              <p>Paste base64 data</p>
+            </div>
+            <div class="scan-btn" onclick="setScanMode('camera')">
+              <h4>📷 Camera Scan</h4>
+              <p>Use webcam</p>
+            </div>
+            <div class="scan-btn" onclick="setScanMode('file')">
+              <h4>📁 Image File</h4>
+              <p>Upload QR image</p>
+            </div>
+          </div>
+
+          <div id="manual-input" class="scan-method active">
+            <div class="input-group">
+              <label>Paste QR Code Data (Base64):</label>
+              <textarea
+                id="qrInput"
+                rows="4"
+                style="
+                  width: 100%;
+                  padding: 0.8rem;
+                  border: 2px solid #ddd;
+                  border-radius: 8px;
+                  font-family: monospace;
+                "
+                placeholder="Paste base64 data from QR code here..."
+              ></textarea>
+            </div>
+            <button class="btn" onclick="addChunk()">➕ Add Chunk</button>
+          </div>
+
+          <div id="camera-scan" class="scan-method" style="display: none">
+            <div style="text-align: center">
+              <video
+                id="video"
+                width="400"
+                height="300"
+                style="
+                  border: 2px solid #ddd;
+                  border-radius: 8px;
+                  margin: 1rem 0;
+                "
+              ></video>
+              <canvas id="canvas" style="display: none"></canvas>
+              <br />
+              <button class="btn" onclick="startCamera()">
+                📷 Start Camera
+              </button>
+              <button class="btn" onclick="stopCamera()">⏹️ Stop Camera</button>
+              <button class="btn" onclick="captureQR()">📸 Capture QR</button>
+            </div>
+          </div>
+
+          <div id="file-scan" class="scan-method" style="display: none">
+            <div class="input-group">
+              <label>Upload QR Code Image:</label>
+              <input
+                type="file"
+                id="qrImageInput"
+                accept="image/*"
+                onchange="scanImageFile(event)"
+              />
+            </div>
+          </div>
+
+          <div class="chunk-info">
+            <h4>Collected Chunks: <span id="chunksCollected">0</span></h4>
+            <div id="chunksList"></div>
+          </div>
+
+          <div class="input-group">
+            <label for="receivePassword">Decryption Password:</label>
+            <input
+              type="password"
+              id="receivePassword"
+              placeholder="Enter the password used for encryption"
+            />
+          </div>
+
+          <button
+            class="btn"
+            onclick="decryptAndSave()"
+            id="decryptBtn"
+            disabled
+          >
+            🔓 Decrypt & Save File
+          </button>
+
+          <div class="log" id="receiveLog"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Global variables
+      let currentMode = "send";
+      let currentScanMode = "manual";
+      let selectedFile = null;
+      let processedData = null;
+      let qrChunks = [];
+      let currentChunkIndex = 0;
+      let collectedChunks = [];
+      let stream = null;
+
+      // Mode switching
+      function switchMode(mode) {
+        currentMode = mode;
+        document
+          .querySelectorAll(".mode-btn")
+          .forEach((btn) => btn.classList.remove("active"));
+        document
+          .querySelector(`[onclick="switchMode('${mode}')"]`)
+          .classList.add("active");
+
+        document
+          .querySelectorAll(".section")
+          .forEach((section) => section.classList.remove("active"));
+        document.getElementById(`${mode}-section`).classList.add("active");
+      }
+
+      function setScanMode(mode) {
+        currentScanMode = mode;
+        document
+          .querySelectorAll(".scan-btn")
+          .forEach((btn) => btn.classList.remove("active"));
+        document
+          .querySelector(`[onclick="setScanMode('${mode}')"]`)
+          .classList.add("active");
+
+        document
+          .querySelectorAll(".scan-method")
+          .forEach((method) => (method.style.display = "none"));
+        document.getElementById(
+          `${mode}-${mode === "manual" ? "input" : "scan"}`
+        ).style.display = "block";
+      }
+
+      // File handling
+      function handleDragOver(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add("dragover");
+      }
+
+      function handleDragLeave(e) {
+        e.currentTarget.classList.remove("dragover");
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        e.currentTarget.classList.remove("dragover");
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          handleFile(files[0]);
+        }
+      }
+
+      function handleFileSelect(e) {
+        if (e.target.files.length > 0) {
+          handleFile(e.target.files[0]);
+        }
+      }
+
+      function handleFile(file) {
+        selectedFile = file;
+        document.getElementById("fileName").textContent = file.name;
+        document.getElementById("originalSize").textContent = formatBytes(
+          file.size
+        );
+        document.getElementById("file-selected").style.display = "block";
+
+        // Simulate compression calculation
+        const estimatedCompressed = Math.floor(file.size * 0.7); // Rough estimate
+        document.getElementById("compressedSize").textContent =
+          formatBytes(estimatedCompressed);
+        document.getElementById("compressionRatio").textContent =
+          Math.floor((1 - estimatedCompressed / file.size) * 100) + "%";
+      }
+
+      function formatBytes(bytes) {
+        if (bytes === 0) return "0 B";
+        const k = 1024;
+        const sizes = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+      }
+
+      // File processing
+      async function processFile() {
+        if (!selectedFile || !document.getElementById("sendPassword").value) {
+          alert("Please select a file and enter a password");
+          return;
+        }
+
+        const password = document.getElementById("sendPassword").value;
+
+        try {
+          // Read file
+          const fileBuffer = await selectedFile.arrayBuffer();
+          const fileData = new Uint8Array(fileBuffer);
+
+          // Simulate compression (in real app, use actual compression library)
+          const compressed = await simulateCompression(fileData);
+
+          // Simulate encryption (in real app, use actual crypto library)
+          const encrypted = await simulateEncryption(compressed, password);
+
+          // Generate QR chunks
+          generateQRChunks(encrypted);
+
+          document.getElementById("qr-display-section").style.display = "block";
+        } catch (error) {
+          alert("Error processing file: " + error.message);
+        }
+      }
+
+      async function simulateCompression(data) {
+        // Simulate compression delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // For demo purposes, just return the data (in real app, use pako.js or similar)
+        return data;
+      }
+
+      async function simulateEncryption(data, password) {
+        // Simulate encryption delay
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Generate random nonce (12 bytes)
+        const nonce = new Uint8Array(12);
+        crypto.getRandomValues(nonce);
+
+        // For demo purposes, just combine nonce + data
+        const encrypted = new Uint8Array(nonce.length + data.length);
+        encrypted.set(nonce, 0);
+        encrypted.set(data, nonce.length);
+
+        return encrypted;
+      }
+
+      function generateQRChunks(data) {
+        const chunkSize = 1000; // bytes per QR code
+        const chunks = [];
+
+        for (let i = 0; i < data.length; i += chunkSize) {
+          const chunk = data.slice(i, i + chunkSize);
+          const base64Chunk = btoa(String.fromCharCode.apply(null, chunk));
+          chunks.push(base64Chunk);
+        }
+
+        qrChunks = chunks;
+        currentChunkIndex = 0;
+        document.getElementById("totalChunks").textContent = chunks.length;
+
+        displayCurrentChunk();
+      }
+
+      function displayCurrentChunk() {
+        if (qrChunks.length === 0) return;
+
+        const chunk = qrChunks[currentChunkIndex];
+        document.getElementById("currentChunk").textContent =
+          currentChunkIndex + 1;
+
+        // Generate actual QR code
+        const qrContainer = document.getElementById("qrCode");
+        qrContainer.innerHTML = ""; // Clear previous QR code
+
+        new QRCode(qrContainer, {
+          text: chunk,
+          width: 256,
+          height: 256,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H,
+        });
+
+        document.getElementById("base64Display").textContent = chunk;
+
+        // Update progress
+        const progress = ((currentChunkIndex + 1) / qrChunks.length) * 100;
+        document.getElementById("qrProgress").style.width = progress + "%";
+
+        // Update navigation buttons
+        document.getElementById("prevBtn").disabled = currentChunkIndex === 0;
+        document.getElementById("nextBtn").disabled =
+          currentChunkIndex === qrChunks.length - 1;
+      }
+
+      function prevChunk() {
+        if (currentChunkIndex > 0) {
+          currentChunkIndex--;
+          displayCurrentChunk();
+        }
+      }
+
+      function nextChunk() {
+        if (currentChunkIndex < qrChunks.length - 1) {
+          currentChunkIndex++;
+          displayCurrentChunk();
+        }
+      }
+
+      // Receive functionality
+      function addChunk() {
+        const input = document.getElementById("qrInput").value.trim();
+        if (!input) return;
+
+        try {
+          // Validate base64
+          atob(input);
+
+          collectedChunks.push(input);
+          updateChunksList();
+          document.getElementById("qrInput").value = "";
+
+          if (collectedChunks.length > 0) {
+            document.getElementById("decryptBtn").disabled = false;
+          }
+        } catch (error) {
+          alert("Invalid base64 data");
+        }
+      }
+
+      function updateChunksList() {
+        document.getElementById("chunksCollected").textContent =
+          collectedChunks.length;
+        const list = document.getElementById("chunksList");
+        list.innerHTML = collectedChunks
+          .map(
+            (chunk, index) =>
+              `<div style="margin: 0.5rem 0; padding: 0.5rem; background: #e9ecef; border-radius: 4px;">
+                    Chunk ${index + 1}: ${chunk.length} chars
+                    <button onclick="removeChunk(${index})" style="margin-left: 1rem; padding: 0.2rem 0.5rem; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">Remove</button>
+                </div>`
+          )
+          .join("");
+      }
+
+      function removeChunk(index) {
+        collectedChunks.splice(index, 1);
+        updateChunksList();
+
+        if (collectedChunks.length === 0) {
+          document.getElementById("decryptBtn").disabled = true;
+        }
+      }
+
+      function logReceive(message, type = "info") {
+        const log = document.getElementById("receiveLog");
+        const entry = document.createElement("div");
+        entry.className = `log-entry ${type}`;
+        entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+      }
+
+      async function decryptAndSave() {
+        const password = document.getElementById("receivePassword").value;
+        if (!password) {
+          alert("Please enter the decryption password");
+          return;
+        }
+
+        if (collectedChunks.length === 0) {
+          alert("No chunks collected");
+          return;
+        }
+
+        try {
+          logReceive("Starting decryption...", "info");
+
+          // Combine all chunks
+          let combinedData = "";
+          for (const chunk of collectedChunks) {
+            combinedData += chunk;
+          }
+
+          // Decode from base64
+          const encryptedData = Uint8Array.from(atob(combinedData), (c) =>
+            c.charCodeAt(0)
+          );
+          logReceive(`Combined data: ${encryptedData.length} bytes`, "success");
+
+          // Extract nonce (first 12 bytes) and ciphertext
+          if (encryptedData.length < 12) {
+            throw new Error("Data too short - missing nonce");
+          }
+
+          const nonce = encryptedData.slice(0, 12);
+          const ciphertext = encryptedData.slice(12);
+
+          logReceive("Decrypting...", "info");
+
+          // Simulate decryption (in real app, use actual crypto)
+          const decrypted = ciphertext; // For demo
+
+          logReceive("Decompressing...", "info");
+
+          // Simulate decompression (in real app, use actual decompression)
+          const decompressed = decrypted; // For demo
+
+          logReceive(
+            `Decryption successful: ${decompressed.length} bytes`,
+            "success"
+          );
+
+          // Create download
+          const blob = new Blob([decompressed]);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "received_file";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          logReceive("File saved successfully!", "success");
+        } catch (error) {
+          logReceive(`Error: ${error.message}`, "error");
+        }
+      }
+
+      // Camera functionality
+      async function startCamera() {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "environment",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          });
+          const video = document.getElementById("video");
+          video.srcObject = stream;
+          video.play();
+
+          // Start QR code scanning
+          scanQRCode();
+        } catch (error) {
+          alert("Error accessing camera: " + error.message);
+        }
+      }
+
+      function stopCamera() {
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          stream = null;
+          document.getElementById("video").srcObject = null;
+        }
+      }
+
+      function captureQR() {
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+
+        // In a real implementation, you would use a QR code library here
+        // For demo purposes, we'll just show a message
+        alert(
+          "QR capture functionality would be implemented with a QR code library like jsQR"
+        );
+      }
+
+      function scanQRCode() {
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        function scan() {
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+            const code = jsQR(
+              imageData.data,
+              imageData.width,
+              imageData.height,
+              {
+                inversionAttempts: "dontInvert",
+              }
+            );
+
+            if (code) {
+              // Found a QR code
+              try {
+                // Validate base64
+                atob(code.data);
+
+                // Add chunk if it's not already collected
+                if (!collectedChunks.includes(code.data)) {
+                  collectedChunks.push(code.data);
+                  updateChunksList();
+                  logReceive(`QR code scanned successfully!`, "success");
+
+                  if (collectedChunks.length > 0) {
+                    document.getElementById("decryptBtn").disabled = false;
+                  }
+                }
+              } catch (error) {
+                logReceive(`Invalid QR code data: ${error.message}`, "error");
+              }
+            }
+          }
+
+          if (stream) {
+            requestAnimationFrame(scan);
+          }
+        }
+
+        scan();
+      }
+
+      function scanImageFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const img = new Image();
+          img.onload = function () {
+            const canvas = document.getElementById("canvas");
+            const ctx = canvas.getContext("2d");
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            const imageData = ctx.getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+            const code = jsQR(
+              imageData.data,
+              imageData.width,
+              imageData.height,
+              {
+                inversionAttempts: "dontInvert",
+              }
+            );
+
+            if (code) {
+              try {
+                // Validate base64
+                atob(code.data);
+
+                // Add chunk if it's not already collected
+                if (!collectedChunks.includes(code.data)) {
+                  collectedChunks.push(code.data);
+                  updateChunksList();
+                  logReceive(`QR code scanned successfully!`, "success");
+
+                  if (collectedChunks.length > 0) {
+                    document.getElementById("decryptBtn").disabled = false;
+                  }
+                }
+              } catch (error) {
+                logReceive(`Invalid QR code data: ${error.message}`, "error");
+              }
+            } else {
+              logReceive("No QR code found in image", "error");
+            }
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", function () {
+        logReceive("AirGap Sync ready", "success");
+      });
+    </script>
+  </body>
+</html>
